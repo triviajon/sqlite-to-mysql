@@ -84,7 +84,7 @@ def create_sql_dump(db_file, dump_file, drop_table=True, export_mode="both"):
             col_name, col_type = col_info[1], col_info[2]
             nullable = False
             cursor.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE {col_name} IS NULL OR {col_name} = '';")
+                f"""SELECT COUNT(*) FROM {table} WHERE "{col_name}" IS NULL OR "{col_name}" = '';""")
             null_count = cursor.fetchone()[0]
             if null_count > 0:
                 nullable = True
@@ -92,15 +92,16 @@ def create_sql_dump(db_file, dump_file, drop_table=True, export_mode="both"):
             col_value = None
             if col_type == 'TEXT':
                 cursor.execute(
-                    f"SELECT MAX(LENGTH({col_name})) FROM {table};")
+                    f'SELECT MAX(LENGTH(`{col_name}`)) FROM {table};')
                 max_length = cursor.fetchone()[0]
                 max_lengths[col_name] = max(
                     max_lengths.get(col_name, 0), max_length)
             elif col_type == 'INTEGER':
-                cursor.execute(f"SELECT MAX({col_name}) FROM {table};")
+                cursor.execute(f'SELECT MAX(`{col_name}`) FROM {table};')
                 max_value = cursor.fetchone()[0]
-                max_values[col_name] = max(
-                    max_values.get(col_name, 0), max_value)
+                if max_value is not None:
+                    max_values[col_name] = max(
+                        max_values.get(col_name, 0), max_value)
 
             nullability[col_name] = nullable
 
@@ -112,7 +113,7 @@ def create_sql_dump(db_file, dump_file, drop_table=True, export_mode="both"):
                     f.write(f"DROP TABLE IF EXISTS {table};")
 
                 columns = ', '.join([
-                    f"{col[1]} {sqlite_to_mysql_type(col[2], max_lengths.get(col[1]), nullability.get(col[1]), max_values.get(col[1]))}"
+                    f'`{col[1]}` {sqlite_to_mysql_type(col[2], max_lengths.get(col[1]), nullability.get(col[1]), max_values.get(col[1]))}'
                     for col in columns_info
                 ])
                 table_create_query = f"\n\n-- Table structure for {table}\n"
@@ -142,8 +143,7 @@ def create_sql_dump(db_file, dump_file, drop_table=True, export_mode="both"):
                         'NULL' if col is None or col == '' else repr(col) for col in row)
                     # Replace 'NULL' with NULL
                     columns = columns.replace("'NULL'", "NULL")
-
-                    f.write(f"\nINSERT INTO {table} VALUES ({columns});")
+                    f.write(f"\nINSERT INTO `{table}` VALUES ({columns});")
 
                     # Print progress for each row
                     print(
